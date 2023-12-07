@@ -1,0 +1,20 @@
+version: '3.7'
+
+services:
+  pgdb:
+    image: postgres
+    restart: always
+    # volumes:
+    #   - ./volumes/db:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_DB=ntfdb
+      - POSTGRES_USER=qweqwe
+      - POSTGRES_PASSWORD=123123
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
