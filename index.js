@@ -1,4 +1,5 @@
 import express from 'express'
+import fs from 'fs'
 import _pgp from 'pg-promise'
 
 const app = express()
@@ -15,21 +16,13 @@ try {
 	console.log('ERROR:', error.message || error)
 }
 
-db.query(
-	`CREATE TABLE IF NOT EXISTS records (
-		id SERIAL,
-		label VARCHAR(64) NOT NULL,
-		value VARCHAR(64) NOT NULL
-	);` 
-	// + `INSERT INTO records (label, value) VALUES ('one', '1'), ('two', '2'), ('three', '3'), ('four', '4')`,
-)
+db.query(fs.readFileSync('./init.pgsql', 'utf8'))
 
 app.listen(port, () => {
 	console.log(`Example app listening on port ${port}`)
 })
 
-app.get('/', (req, res) => {
-	res.setHeader('Cache-Control', 'no-cache')
+app.get('/', async (req, res) => {
 	res.setHeader('Content-Type', 'text/event-stream')
 	res.setHeader('Connection', 'keep-alive')
 	res.flushHeaders() // flush the headers to establish SSE with client
@@ -37,21 +30,31 @@ app.get('/', (req, res) => {
 	// https://github.com/vitaly-t/pg-promise/wiki/Learn-by-Example#listen--notify
 	// https://stackoverflow.com/questions/45427280/postgres-listen-notify-with-pg-promise
 
-	let counter = 0
-	let interValID = setInterval(() => {
-		counter++
-		if (counter >= 10) {
-			clearInterval(interValID)
-			res.end() // terminates SSE session
-			return
-		}
-		res.write(`data: ${JSON.stringify({ num: counter })}\n\n`) // res.write() instead of res.send()
-	}, 1000)
+	const sco = await db.connect()
+
+	sco.client.on('notification', (data) => {
+		console.log('Received:', data)
+		res.write(`data: ${JSON.stringify(data)}\n\n`)
+	})
+
+	sco.none('LISTEN "records-changes"')
+
+	// let counter = 1
+	// let interValID = setInterval(async () => {
+	// 	if (counter > 3) {
+	// 		clearInterval(interValID)
+	// 		await sco.done()
+	// 		res.end() // terminates SSE session
+	// 		return
+	// 	}
+	// 	sco.none(`NOTIFY "records-changes", '${JSON.stringify({ counter })}'`)
+	// 	counter++
+	// }, 500)
 
 	// If client closes connection, stop sending events
 	res.on('close', () => {
 		console.log('client dropped me')
-		clearInterval(interValID)
+		// clearInterval(interValID)
 		res.end()
 	})
 })
