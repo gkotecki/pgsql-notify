@@ -25,10 +25,7 @@ app.listen(port, () => {
 app.get('/', async (req, res) => {
 	res.setHeader('Content-Type', 'text/event-stream')
 	res.setHeader('Connection', 'keep-alive')
-	res.flushHeaders() // flush the headers to establish SSE with client
-
-	// https://github.com/vitaly-t/pg-promise/wiki/Learn-by-Example#listen--notify
-	// https://stackoverflow.com/questions/45427280/postgres-listen-notify-with-pg-promise
+	res.flushHeaders()
 
 	const sco = await db.connect()
 
@@ -39,22 +36,15 @@ app.get('/', async (req, res) => {
 
 	sco.none('LISTEN "records-changes"')
 
-	// let counter = 1
-	// let interValID = setInterval(async () => {
-	// 	if (counter > 3) {
-	// 		clearInterval(interValID)
-	// 		await sco.done()
-	// 		res.end() // terminates SSE session
-	// 		return
-	// 	}
-	// 	sco.none(`NOTIFY "records-changes", '${JSON.stringify({ counter })}'`)
-	// 	counter++
-	// }, 500)
-
-	// If client closes connection, stop sending events
 	res.on('close', () => {
-		console.log('client dropped me')
-		// clearInterval(interValID)
+		console.log('Connection dropped')
 		res.end()
 	})
+})
+
+app.post('/add', async (req, res) => {
+  const sco = await db.connect()
+  await sco.none(`INSERT INTO records (value) VALUES ('new record')`)
+  sco.done()
+  res.send('OK')
 })
